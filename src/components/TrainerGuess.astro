@@ -1,0 +1,176 @@
+---
+/**
+ * Тренажёр «Угадай значение».
+ *
+ * Каждый раз собирает новую задачу со случайными числами, ученик считает в уме
+ * и вводит ответ. Тренажёр проверяет и ведёт счёт.
+ *
+ * Четыре вида задач:
+ *   chain    — цепочка сложений и вычитаний
+ *   multiply — умножение, потом сложение
+ *   loop     — цикл с накоплением
+ *   divide   — деление, потом вычитание
+ *
+ *   <Trainer type="guess" />
+ *   <Trainer type="guess" kinds={["loop"]} varName="score" max={12} />
+ */
+type Kind = 'chain' | 'multiply' | 'loop' | 'divide';
+
+interface Props {
+  title?: string;
+  subtitle?: string;
+  /** имя переменной в задачах */
+  varName?: string;
+  /** какие виды задач генерировать */
+  kinds?: Kind[];
+  /** наибольшее число, которое может встретиться в слагаемых */
+  max?: number;
+}
+const {
+  title = 'Угадай значение',
+  subtitle = 'Бесконечные задачи со случайными числами. Считай в уме, потом проверяй.',
+  varName = 'x',
+  kinds = ['chain', 'multiply', 'loop', 'divide'],
+  max = 25,
+} = Astro.props;
+---
+
+<div
+  class="lab"
+  data-trainer="guess"
+  data-var={varName}
+  data-kinds={kinds.join(',')}
+  data-max={String(max)}
+>
+  <p class="lab-t">{title}</p>
+  <p class="lab-s">{subtitle}</p>
+
+  <div class="q" data-question>…</div>
+
+  <div class="ctrl">
+    <input type="number" class="w-answer" data-answer placeholder="ответ" aria-label="Твой ответ" />
+    <button type="button" data-check>Проверить</button>
+    <button type="button" class="ghost" data-next>Другая задача</button>
+    <span class="score" data-score aria-live="polite">0 из 0</span>
+  </div>
+
+  <div class="verdict" data-verdict role="status" hidden></div>
+
+  <noscript>
+    <p class="lab-nojs">Тренажёр придумывает задачи прямо в браузере, поэтому ему нужен включённый
+    JavaScript. Весь текст урока и все задания читаются и без него.</p>
+  </noscript>
+</div>
+
+<script>
+  type Kind = 'chain' | 'multiply' | 'loop' | 'divide';
+
+  /** Случайное целое от a до b включительно. */
+  const ri = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
+  const pick = <T,>(list: T[]): T => list[ri(0, list.length - 1)]!;
+
+  function build(kind: Kind, name: string, max: number) {
+    const lines: string[] = [];
+    let start = 0;
+    let value = 0;
+
+    if (kind === 'chain') {
+      start = ri(2, 50) * (Math.random() < 0.5 ? 1 : 2);
+      value = start;
+      for (let i = 0, times = ri(2, 3); i < times; i++) {
+        const op = pick(['+=', '-=', '+=']);
+        let n = ri(2, max);
+        // не уводим переменную в минус — детям так понятнее
+        if (op === '-=' && n > value) n = ri(1, Math.max(1, value));
+        lines.push(`${name} ${op} ${n}`);
+        value = op === '+=' ? value + n : value - n;
+      }
+    } else if (kind === 'multiply') {
+      start = ri(2, 9);
+      value = start;
+      const m = ri(2, 5);
+      lines.push(`${name} *= ${m}`);
+      value *= m;
+      const p = ri(1, Math.min(20, max));
+      lines.push(`${name} += ${p}`);
+      value += p;
+    } else if (kind === 'loop') {
+      const step = ri(2, Math.min(12, max));
+      const times = ri(3, 6);
+      start = 0;
+      value = step * times;
+      // отступ пробелами, а не табом: так строка выглядит одинаково везде
+      lines.push(`for i = 1, ${times} do`, `    ${name} += ${step}`, 'end');
+    } else {
+      start = ri(4, 12) * 10;
+      value = start;
+      const d = pick([2, 4, 5]);
+      lines.push(`${name} /= ${d}`);
+      value = value / d;
+      const s = ri(1, Math.min(15, max));
+      lines.push(`${name} -= ${s}`);
+      value -= s;
+    }
+
+    return {
+      text: [`local ${name} = ${start}`, ...lines, `print(${name})`].join('\n'),
+      answer: Math.round(value * 100) / 100,
+    };
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-trainer="guess"]')) {
+    const name = root.dataset.var ?? 'x';
+    const max = Number(root.dataset.max ?? 25);
+    const kinds = (root.dataset.kinds ?? 'chain,multiply,loop,divide')
+      .split(',')
+      .filter(Boolean) as Kind[];
+
+    const questionEl = root.querySelector<HTMLElement>('[data-question]')!;
+    const answerEl = root.querySelector<HTMLInputElement>('[data-answer]')!;
+    const scoreEl = root.querySelector<HTMLElement>('[data-score]')!;
+    const verdictEl = root.querySelector<HTMLElement>('[data-verdict]')!;
+
+    let right = 0;
+    let asked = 0;
+    let answer = 0;
+
+    function next(focus = true) {
+      const task = build(pick(kinds), name, max);
+      answer = task.answer;
+      questionEl.textContent = task.text;
+      answerEl.value = '';
+      verdictEl.hidden = true;
+      if (focus) answerEl.focus();
+    }
+
+    function say(ok: boolean, text: string) {
+      verdictEl.className = ok ? 'verdict v-ok' : 'verdict v-no';
+      verdictEl.textContent = text;
+      verdictEl.hidden = false;
+    }
+
+    function check() {
+      const guess = Number.parseFloat(answerEl.value);
+      if (!Number.isFinite(guess)) {
+        say(false, 'Сначала введи число');
+        return;
+      }
+      asked += 1;
+      if (Math.abs(guess - answer) < 0.001) {
+        right += 1;
+        say(true, `Верно. Ответ ${answer}`);
+      } else {
+        say(false, `Не сходится. Правильный ответ ${answer}. Пройди строки сверху вниз ещё раз.`);
+      }
+      scoreEl.textContent = `${right} из ${asked}`;
+    }
+
+    root.querySelector('[data-check]')!.addEventListener('click', check);
+    root.querySelector('[data-next]')!.addEventListener('click', () => next());
+    answerEl.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') check(); });
+    answerEl.addEventListener('input', () => { verdictEl.hidden = true; });
+
+    // первая задача появляется сразу, но фокус не забираем: страница только открылась
+    next(false);
+  }
+</script>

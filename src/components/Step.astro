@@ -1,0 +1,15 @@
+---
+/**
+ * Одна строка разбора. hit — итоговая строка, она синяя и жирная.
+ */
+interface Props {
+  label: string;
+  code?: string;
+  hit?: boolean;
+}
+const { label, code, hit = false } = Astro.props;
+---
+<div class={hit ? 'step hit' : 'step'}>
+  <div class="lb">{label}</div>
+  <div class="cd">{code}<slot /></div>
+</div>

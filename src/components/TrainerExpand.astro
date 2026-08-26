@@ -1,0 +1,182 @@
+---
+/**
+ * Тренажёр «Разборщик».
+ *
+ * Ученик выбирает операцию и число, а тренажёр показывает, во что превращается
+ * короткая запись: сначала в длинную, потом с подставленными значениями.
+ * Значение переменной остаётся между нажатиями, история последних действий —
+ * внизу.
+ *
+ *   <Trainer type="expand" />
+ *   <Trainer type="expand" varName="health" start={100} operators={["-=", "+="]} />
+ */
+interface Props {
+  title?: string;
+  subtitle?: string;
+  /** имя переменной в примерах */
+  varName?: string;
+  /** что лежит в коробке в начале */
+  start?: number;
+  /** какие операции показывать в выпадающем списке */
+  operators?: string[];
+  /** что стоит в поле числа при загрузке */
+  defaultValue?: number;
+  /** сколько строк держать в истории */
+  historyLimit?: number;
+}
+const {
+  title = 'Разборщик',
+  subtitle = 'Выбери операцию и число. Смотри, во что превращается строка.',
+  varName = 'score',
+  start = 0,
+  operators = ['+=', '-=', '*=', '/=', '//=', '%=', '^='],
+  defaultValue = 10,
+  historyLimit = 7,
+} = Astro.props;
+---
+
+<div
+  class="lab"
+  data-trainer="expand"
+  data-var={varName}
+  data-start={String(start)}
+  data-limit={String(historyLimit)}
+>
+  <p class="lab-t">{title}</p>
+  <p class="lab-s">{subtitle}</p>
+
+  <div class="big">
+    <div class="lbl">В коробке сейчас</div>
+    <div class="v"><em>{varName} = </em><span data-value>{start}</span></div>
+  </div>
+
+  <div class="ctrl">
+    <span class="var">{varName}</span>
+    <select data-op aria-label="Операция">
+      {operators.map((op) => <option>{op}</option>)}
+    </select>
+    <input type="number" class="w-num" data-num value={String(defaultValue)} step="1" aria-label="Число" />
+    <button type="button" data-go>Выполнить</button>
+    <button type="button" class="ghost" data-reset>Сброс</button>
+  </div>
+
+  <p class="err" data-err hidden>Введи число</p>
+  <div data-steps aria-live="polite"></div>
+
+  <div class="log-wrap">
+    <div class="log-h">История</div>
+    <div class="log" data-log><span class="dim">пока пусто</span></div>
+  </div>
+
+  <noscript>
+    <p class="lab-nojs">Тренажёр считает прямо в браузере, поэтому ему нужен включённый JavaScript.
+    Весь текст урока и все задания читаются и без него.</p>
+  </noscript>
+</div>
+
+<script>
+  const round = (n: number) => Math.round(n * 1000) / 1000;
+
+  /** Строка разбора: слева пояснение, справа код. Собирается узлами, не текстом. */
+  function stepRow(label: string, code: string, hit = false) {
+    const row = document.createElement('div');
+    row.className = hit ? 'step hit' : 'step';
+    const lb = document.createElement('div');
+    lb.className = 'lb';
+    lb.textContent = label;
+    const cd = document.createElement('div');
+    cd.className = 'cd';
+    cd.textContent = code;
+    row.append(lb, cd);
+    return row;
+  }
+
+  function apply(sym: string, value: number, n: number) {
+    switch (sym) {
+      case '+': return value + n;
+      case '-': return value - n;
+      case '*': return value * n;
+      case '^': return Math.pow(value, n);
+      // делить на ноль нельзя — оставляем как было, чтобы не пугать ученика NaN
+      case '/': return n === 0 ? value : value / n;
+      case '//': return n === 0 ? value : Math.floor(value / n);
+      case '%': return n === 0 ? value : value % n;
+      default: return value;
+    }
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>('[data-trainer="expand"]')) {
+    const name = root.dataset.var ?? 'score';
+    const start = Number(root.dataset.start ?? 0);
+    const limit = Number(root.dataset.limit ?? 7);
+
+    const valueEl = root.querySelector<HTMLElement>('[data-value]')!;
+    const opEl = root.querySelector<HTMLSelectElement>('[data-op]')!;
+    const numEl = root.querySelector<HTMLInputElement>('[data-num]')!;
+    const stepsEl = root.querySelector<HTMLElement>('[data-steps]')!;
+    const logEl = root.querySelector<HTMLElement>('[data-log]')!;
+    const errEl = root.querySelector<HTMLElement>('[data-err]')!;
+
+    let value = start;
+    let history: string[] = [];
+
+    function drawLog() {
+      logEl.textContent = '';
+      if (history.length === 0) {
+        const dim = document.createElement('span');
+        dim.className = 'dim';
+        dim.textContent = 'пока пусто';
+        logEl.append(dim);
+        return;
+      }
+      history.forEach((line, i) => {
+        if (i > 0) logEl.append(document.createElement('br'));
+        logEl.append(document.createTextNode(line));
+      });
+    }
+
+    function run() {
+      const n = Number.parseFloat(numEl.value);
+      if (!Number.isFinite(n)) {
+        errEl.hidden = false;
+        return;
+      }
+      errEl.hidden = true;
+
+      const op = opEl.value;
+      const sym = op.slice(0, -1);
+      const was = value;
+      value = apply(sym, value, n);
+
+      stepsEl.textContent = '';
+      stepsEl.append(
+        stepRow('Пишем так', `${name} ${op} ${n}`),
+        stepRow('Это значит', `${name} = ${name} ${sym} ${n}`),
+        stepRow('Подставляем', `${name} = ${round(was)} ${sym} ${n}`),
+        stepRow('Получаем', `${name} = ${round(value)}`, true)
+      );
+
+      history.push(`${name} ${op} ${n}  →  ${round(value)}`);
+      if (history.length > limit) history.shift();
+
+      valueEl.textContent = String(round(value));
+      drawLog();
+    }
+
+    function reset() {
+      value = start;
+      history = [];
+      stepsEl.textContent = '';
+      errEl.hidden = true;
+      valueEl.textContent = String(round(value));
+      drawLog();
+    }
+
+    numEl.addEventListener('input', () => { errEl.hidden = true; });
+    root.querySelector('[data-go]')!.addEventListener('click', run);
+    root.querySelector('[data-reset]')!.addEventListener('click', reset);
+    numEl.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') run(); });
+
+    drawLog();
+  }
+</script>

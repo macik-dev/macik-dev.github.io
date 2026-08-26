@@ -1,0 +1,25 @@
+---
+/**
+ * Секция урока: номер в рамке, заголовок, подзаголовок серым.
+ * Номер и якорь проставляются на сборке — писать их вручную не нужно.
+ *
+ *   <Section title="Короткая запись" sub="Тот же смысл, вдвое меньше букв">
+ */
+interface Props {
+  title: string;
+  sub?: string;
+  /** проставляется автоматически */
+  id?: string;
+  /** проставляется автоматически */
+  num?: string;
+}
+const { title, sub, id, num } = Astro.props;
+---
+<section id={id}>
+  <div class="sec-head">
+    {num && <span class="sec-num" aria-hidden="true">{num}</span>}
+    <h2 id={id ? `${id}-title` : undefined}>{title}</h2>
+  </div>
+  {sub && <p class="sec-sub">{sub}</p>}
+  <slot />
+</section>

@@ -1,0 +1,53 @@
+---
+/**
+ * Общая обвязка любой страницы: голова документа, меню слева, содержимое справа.
+ */
+import '../styles/global.css';
+import Sidebar from '../components/Sidebar.astro';
+import { SITE_TITLE, SITE_DESCRIPTION } from '../lib/site';
+
+interface Props {
+  title: string;
+  description?: string;
+  /** slug урока, который сейчас открыт — чтобы подсветить его в меню */
+  current?: string;
+  /** не пускать урок-черновик в поиск, если кто-то откроет его локально */
+  noindex?: boolean;
+}
+const { title, description = SITE_DESCRIPTION, current, noindex = false } = Astro.props;
+
+const pageTitle = title === SITE_TITLE ? title : `${title} — ${SITE_TITLE}`;
+
+---
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site ?? 'http://localhost/').href} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/onest-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/unbounded-cyrillic-600.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/jetbrains-mono-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body data-menu="closed">
+    <a class="skip" href="#main">Сразу к тексту</a>
+
+    <div class="shell">
+      <Sidebar current={current} />
+
+      <main class="main" id="main">
+        <button type="button" class="burger" data-burger aria-expanded="false" aria-controls="side-menu">
+          <span class="bars" aria-hidden="true"></span>
+          Уроки курса
+        </button>
+
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

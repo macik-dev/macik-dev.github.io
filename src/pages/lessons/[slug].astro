@@ -1,0 +1,34 @@
+---
+import { render } from 'astro:content';
+import LessonLayout from '../../layouts/LessonLayout.astro';
+import { mdxComponents } from '../../components/mdx';
+import { getLessons, getNeighbours, assertPrerequisites, assertUnique } from '../../lib/lessons';
+
+/**
+ * Страницы уроков. Черновики сюда не попадают: в собранном сайте их страниц
+ * просто не существует, поэтому прямая ссылка тоже не сработает.
+ */
+export async function getStaticPaths() {
+  const lessons = await getLessons();
+  await assertUnique(lessons);
+  await assertPrerequisites(lessons);
+
+  return Promise.all(
+    lessons.map(async (lesson) => ({
+      params: { slug: lesson.data.slug },
+      props: { lesson, ...(await getNeighbours(lesson)) },
+    }))
+  );
+}
+
+const { lesson, prev, next } = Astro.props;
+const { Content, remarkPluginFrontmatter } = await render(lesson);
+
+const toc = remarkPluginFrontmatter.toc ?? [];
+const stats = remarkPluginFrontmatter.stats ?? {
+  oral: 0, written: 0, trainers: 0, tasks: 0, sections: 0, readingMinutes: 1,
+};
+---
+<LessonLayout lesson={lesson} toc={toc} stats={stats} prev={prev} next={next}>
+  <Content components={mdxComponents} />
+</LessonLayout>

@@ -1,0 +1,23 @@
+---
+/**
+ * Карточка задания. Номер проставляется автоматически по месту в группе.
+ *
+ *   <Task>Как записать `coins += 7` длинным способом?
+ *     <Answer>`coins = coins + 7`</Answer>
+ *   </Task>
+ *
+ * type="written" — письменное задание: подпись у спойлера станет «Показать решение».
+ */
+interface Props {
+  /** проставляется автоматически, но можно задать вручную */
+  id?: string;
+  type?: 'oral' | 'written';
+}
+const { id } = Astro.props;
+---
+<div class="task">
+  <div class="task-h">
+    <span class="tid">{id}</span>
+    <div class="task-body"><slot /></div>
+  </div>
+</div>

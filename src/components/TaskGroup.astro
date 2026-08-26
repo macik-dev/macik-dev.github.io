@@ -1,0 +1,30 @@
+---
+/**
+ * Группа заданий: заголовок с полоской и счётчик справа.
+ * Номера заданий внутри (А1, А2, …) берут букву отсюда и считаются сами.
+ *
+ *   <TaskGroup letter="Б" title="Что окажется в переменной">
+ */
+interface Props {
+  title: string;
+  /** буква для номеров заданий: А, Б, В… */
+  letter?: string;
+  /** проставляется автоматически */
+  count?: string | number;
+}
+const { title, letter, count } = Astro.props;
+
+const n = Number(count ?? 0);
+const plural = (value: number) => {
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'задание';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'задания';
+  return 'заданий';
+};
+const heading = letter ? `Группа ${letter}. ${title}` : title;
+---
+<div class="group">
+  <h3 class="group-t">{heading}{n > 0 && <span>{n} {plural(n)}</span>}</h3>
+  <slot />
+</div>

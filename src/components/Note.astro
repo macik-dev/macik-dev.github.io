@@ -1,0 +1,24 @@
+---
+/**
+ * Заметка четырёх видов:
+ *   tip   — синяя, «главное», «как это работает»
+ *   warn  — янтарная, «осторожно», «частая путаница»
+ *   error — красная, «так нельзя», «молчаливая ошибка»
+ *   ok    — зелёная, «правило», «шпаргалка»
+ *
+ *   <Note kind="warn" title="Осторожно">текст</Note>
+ */
+interface Props {
+  kind?: 'tip' | 'warn' | 'error' | 'ok';
+  title?: string;
+}
+const { kind = 'tip', title } = Astro.props;
+
+const CLASS = { tip: 'n-blue', warn: 'n-amber', error: 'n-red', ok: 'n-green' } as const;
+// подпись цветом не ограничивается: у каждой заметки есть слово, а не только оттенок
+const DEFAULT_TITLE = { tip: 'Главное', warn: 'Осторожно', error: 'Так нельзя', ok: 'Правило' } as const;
+---
+<div class={`note ${CLASS[kind]}`}>
+  <span class="tag">{title ?? DEFAULT_TITLE[kind]}</span>
+  <slot />
+</div>

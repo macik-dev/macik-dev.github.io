@@ -1,0 +1,17 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE_FOOTER } from '../lib/site';
+---
+<BaseLayout title="Страница не найдена" noindex>
+  <div class="wrap">
+    <header class="home-head">
+      <p class="eyebrow">404</p>
+      <h1>Такой страницы нет</h1>
+      <p class="lede">
+        Возможно, урок ещё не готов или ссылка устарела.
+        Список всех уроков — <a href="/">на главной</a> и в меню слева.
+      </p>
+    </header>
+    <footer class="page-foot">{SITE_FOOTER}</footer>
+  </div>
+</BaseLayout>

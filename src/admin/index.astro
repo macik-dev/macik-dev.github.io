@@ -1,0 +1,136 @@
+---
+/**
+ * Визуальный редактор уроков (Sveltia CMS).
+ *
+ * Открывается по адресу http://localhost:4321/admin/ и только там:
+ * этот маршрут добавляется исключительно при npm run dev, в собранном сайте
+ * его нет. Поэтому здесь не нужен и не используется ни один токен.
+ *
+ * Редактор работает с файлами прямо на диске — через режим «локальный
+ * репозиторий». Браузер один раз попросит разрешение на доступ к папке
+ * проекта, дальше правки сразу ложатся в .mdx-файлы.
+ */
+import { REPO, BRANCH } from '../../site.config.mjs';
+import { sectionsInOrder } from '../content/sections.mjs';
+
+const options = sectionsInOrder.map((s) => ({ label: s.title, value: s.id }));
+---
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Редактор уроков</title>
+    <style is:global>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      .admin-note {
+        padding: 14px 20px; background: #FBEFD9; border-bottom: 1px solid #EBCE9C;
+        color: #6a4208; font-size: 14px; line-height: 1.5;
+      }
+      .admin-note b { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <p class="admin-note">
+      Это локальный редактор. Нажми <b>«Work with Local Repository»</b> и выбери папку проекта —
+      правки будут сохраняться прямо в файлы на диске. Чтобы они попали на сайт, потом выполни
+      <b>npm run publish</b>. На опубликованном сайте этой страницы нет.
+    </p>
+
+    <div id="cms-settings" data-repo={REPO} data-branch={BRANCH} data-sections={JSON.stringify(options)}></div>
+
+    <script>
+      const settings = document.getElementById('cms-settings');
+      const repo = settings?.dataset.repo ?? '';
+      const branch = settings?.dataset.branch ?? 'main';
+      const sections = JSON.parse(settings?.dataset.sections ?? '[]');
+
+      // сначала запрещаем автозапуск, потом грузим редактор и настраиваем его сами
+      window.CMS_MANUAL_INIT = true;
+      const { init } = await import('@sveltia/cms');
+
+      init({
+        config: {
+          backend: { name: 'github', repo, branch },
+          // картинок в курсе пока нет, но папку указать надо
+          media_folder: 'public/uploads',
+          public_folder: '/uploads',
+          publish_mode: 'simple',
+          collections: [
+            {
+              name: 'lessons',
+              label: 'Уроки',
+              label_singular: 'Урок',
+              folder: 'src/content/lessons',
+              extension: 'mdx',
+              format: 'yaml-frontmatter',
+              create: true,
+              slug: '{{fields.slug}}',
+              sortable_fields: ['order', 'title'],
+              summary: '{{order}}. {{title}}',
+              fields: [
+                {
+                  name: 'title', label: 'Название урока', widget: 'string',
+                  hint: 'Так урок называется в меню и во вкладке браузера',
+                },
+                {
+                  name: 'slug', label: 'Адрес урока', widget: 'string',
+                  pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$',
+                    'Только латинские буквы в нижнем регистре, цифры и дефис. Например: sostavnye-operatory'],
+                  hint: 'Часть ссылки: /lessons/адрес/. Менять у опубликованного урока не стоит — старые ссылки перестанут работать',
+                },
+                {
+                  name: 'order', label: 'Номер по порядку', widget: 'number',
+                  value_type: 'int', min: 1, step: 1,
+                  hint: 'По нему уроки идут по порядку и связываются «предыдущий → следующий»',
+                },
+                {
+                  name: 'section', label: 'Раздел', widget: 'select', options: sections,
+                  hint: 'Новый раздел добавляется в файле src/content/sections.mjs',
+                },
+                {
+                  name: 'summary', label: 'Вступление', widget: 'text',
+                  hint: 'Одно-два предложения под заголовком и на карточке урока. Можно вставлять `код в бэктиках`',
+                },
+                {
+                  name: 'draft', label: 'Черновик', widget: 'boolean', default: true,
+                  hint: 'Пока включено — урока на сайте нет, он виден только на этом компьютере',
+                },
+                {
+                  name: 'headline', label: 'Заголовок на странице', widget: 'string', required: false,
+                  hint: 'Если пусто — берётся название. Знак | делает перенос строки, `бэктики` — моноширинный синий',
+                },
+                {
+                  name: 'eyebrow', label: 'Строчка над заголовком', widget: 'string', required: false,
+                  hint: 'Если пусто — «Roblox Studio · Luau · урок N»',
+                },
+                {
+                  name: 'readingMinutes', label: 'Время чтения, минут', widget: 'number',
+                  value_type: 'int', min: 1, required: false,
+                  hint: 'Если пусто — посчитается само по объёму текста',
+                },
+                {
+                  name: 'chips', label: 'Дополнительные метки', widget: 'list', required: false,
+                  hint: 'Например: 10 разборов. Тренажёры и задания считаются сами',
+                },
+                { name: 'tags', label: 'Метки темы', widget: 'list', required: false },
+                {
+                  name: 'prerequisites', label: 'Что пройти раньше', widget: 'list', required: false,
+                  hint: 'Адреса других уроков. Если ошибиться — сборка остановится и скажет',
+                },
+                { name: 'updated', label: 'Обновлён', widget: 'datetime', required: false, picker_utc: false },
+                {
+                  name: 'body', label: 'Текст урока', widget: 'markdown',
+                  // только исходный текст: урок состоит из блоков вроде <Section> и <Task>,
+                  // а редактор «как в Ворде» такие блоки ломает
+                  modes: ['raw'],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    </script>
+  </body>
+</html>

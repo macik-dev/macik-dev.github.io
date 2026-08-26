@@ -1,0 +1,98 @@
+# Сборка и публикация сайта на GitHub Pages.
+#
+# Запускается сама при каждой отправке изменений в ветку main.
+# Ничего запускать вручную не нужно: сделал `npm run publish` — через пару
+# минут сайт обновился.
+#
+# Все действия закреплены по точному номеру коммита (длинная строка после @),
+# а не по подвижному тегу вроде @v4. Это значит, что при каждом запуске
+# выполняется ровно тот код, который проверили один раз, — даже если
+# автор действия потом что-то поменяет.
+
+name: Сборка и публикация сайта
+
+on:
+  push:
+    branches: [main]
+  # кнопка «запустить вручную» на вкладке Actions — на случай, если нужно пересобрать
+  workflow_dispatch:
+
+# Токену дано ровно столько прав, сколько нужно, и ни каплей больше:
+# читать код, писать на Pages, подтвердить свою личность при выкладке.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Если пуши идут один за другим — публикуется последний, промежуточные
+# сборки отменяются. Но начатую выкладку не прерываем, чтобы сайт не остался
+# наполовину обновлённым.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  proverka:
+    name: Проверки
+    runs-on: ubuntu-latest
+    steps:
+      - name: Забрать код
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Поставить Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Нет ли в файлах паролей и токенов
+        run: npm run check-secrets
+
+      - name: Проверить уроки и код
+        run: npm run check
+
+  sborka:
+    name: Сборка
+    needs: proverka
+    runs-on: ubuntu-latest
+    steps:
+      - name: Забрать код
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Поставить Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Настроить Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Собрать сайт
+        run: npm run build
+
+      - name: Проверить, что в собранном сайте нет чужих адресов
+        run: node scripts/check-no-external.mjs
+
+      - name: Отдать собранный сайт на выкладку
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  publikaciya:
+    name: Публикация
+    needs: sborka
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Выложить на GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

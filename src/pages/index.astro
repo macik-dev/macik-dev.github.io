@@ -1,0 +1,46 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getSectionGroups, lessonPath } from '../lib/lessons';
+import { plainText } from '../lib/inline';
+import { SITE_TITLE, SITE_EYEBROW, SITE_FOOTER } from '../lib/site';
+
+const groups = await getSectionGroups();
+---
+<BaseLayout title={SITE_TITLE}>
+  <div class="wrap">
+    <header class="home-head">
+      <p class="eyebrow">{SITE_EYEBROW}</p>
+      <h1>{SITE_TITLE}</h1>
+      <p class="lede">
+        Здесь лежат материалы занятий: теория с примерами, тренажёры, устные вопросы
+        и задания для Roblox Studio. Уроки идут по порядку, но можно открывать любой —
+        каждый разбирает одну тему целиком.
+      </p>
+    </header>
+
+    {groups.length === 0 ? (
+      <p class="empty">Уроков пока нет. Первый создаётся командой <code>npm run new-lesson</code>.</p>
+    ) : (
+      groups.map((group) => (
+        <section class="home-sec">
+          <h2>{group.title}</h2>
+          {group.summary && <p class="sec-sub">{group.summary}</p>}
+          <div class="cards">
+            {group.lessons.map((lesson) => (
+              <a class="card" href={lessonPath(lesson.data.slug)}>
+                <span class="num">
+                  Урок {lesson.data.order}
+                  {lesson.data.draft && <span class="draft-badge">черновик</span>}
+                </span>
+                <span class="nm">{lesson.data.title}</span>
+                <span class="ds">{plainText(lesson.data.summary)}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))
+    )}
+
+    <footer class="page-foot">{SITE_FOOTER}</footer>
+  </div>
+</BaseLayout>

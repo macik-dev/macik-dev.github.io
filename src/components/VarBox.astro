@@ -1,0 +1,16 @@
+---
+/**
+ * Коробка-переменная: имя сверху, значение крупно внутри.
+ * active — подсветить синим то, что изменилось.
+ */
+interface Props {
+  name: string;
+  value: string | number;
+  active?: boolean;
+}
+const { name, value, active = false } = Astro.props;
+---
+<div class={active ? 'vbox active' : 'vbox'}>
+  <div class="name">{name}</div>
+  <div class="val">{value}</div>
+</div>

@@ -1,0 +1,37 @@
+---
+/**
+ * Блок кода в стиле редактора Roblox Studio.
+ *
+ * В обычном тексте урока проще писать блок кода тремя обратными кавычками —
+ * получится ровно то же самое:
+ *
+ *     ```luau title="Script"
+ *     local score = 0
+ *     ```
+ *
+ * Этот компонент нужен там, где кавычки неудобны — например, когда код
+ * собирается из переменной:
+ *
+ *     <Code file="Script" code="local score = 0" />
+ *
+ * Подсветка делается на сборке. В браузер не уходит ни строчки кода подсветки.
+ */
+import { Code as Shiki } from 'astro:components';
+import { studioTheme, makeStudioTransformer } from '../plugins/shiki-studio.mjs';
+
+interface Props {
+  code: string;
+  lang?: string;
+  /** подпись на полоске сверху */
+  file?: string;
+  /** убрать полоску совсем */
+  plain?: boolean;
+}
+const { code, lang = 'luau', file = 'Script', plain = false } = Astro.props;
+---
+<Shiki
+  code={code.replace(/\n$/, '')}
+  lang={lang as any}
+  theme={studioTheme}
+  transformers={[makeStudioTransformer({ title: file, plain })]}
+/>

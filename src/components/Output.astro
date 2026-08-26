@@ -1,0 +1,14 @@
+---
+/**
+ * Окно Output — то, что печатает скрипт.
+ * Переносы строк внутри сохраняются, писать <br> не нужно.
+ *
+ *   <Output>шаг 1: 10
+ *   шаг 2: 20</Output>
+ */
+interface Props {
+  label?: string;
+}
+const { label = 'Output' } = Astro.props;
+---
+<div class="out"><span class="lbl">{label}</span><slot /></div>

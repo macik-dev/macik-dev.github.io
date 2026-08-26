@@ -1,0 +1,98 @@
+---
+/**
+ * Страница урока: шапка с метками, оглавление, текст, переходы к соседним урокам.
+ * Всё, что здесь показано, берётся из самого урока — руками ничего не связывается.
+ */
+import BaseLayout from './BaseLayout.astro';
+import { inlineMarkup } from '../lib/inline';
+import { lessonPath } from '../lib/lessons';
+import { SITE_FOOTER } from '../lib/site';
+import type { Lesson } from '../lib/lessons';
+
+type TocItem = { id: string; title: string; num: string };
+type Stats = {
+  oral: number;
+  written: number;
+  trainers: number;
+  tasks: number;
+  sections: number;
+  readingMinutes: number;
+};
+
+interface Props {
+  lesson: Lesson;
+  toc: TocItem[];
+  stats: Stats;
+  prev?: Lesson;
+  next?: Lesson;
+}
+const { lesson, toc, stats, prev, next } = Astro.props;
+const { title, headline, eyebrow, summary, order, draft, chips, readingMinutes } = lesson.data;
+
+const plural = (n: number, one: string, few: string, many: string) => {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+};
+
+// метки в шапке считаются сами: автор пишет только readingMinutes и chips
+const minutes = readingMinutes ?? stats.readingMinutes;
+// порядок: сколько читать → сколько кликать → свои метки → сколько решать
+const allChips = [
+  `чтение ≈ ${minutes} мин`,
+  stats.trainers > 0 && `${stats.trainers} ${plural(stats.trainers, 'тренажёр', 'тренажёра', 'тренажёров')}`,
+  ...chips,
+  stats.oral > 0 && `${stats.oral} ${plural(stats.oral, 'устное', 'устных', 'устных')}`,
+  stats.written > 0 && `${stats.written} ${plural(stats.written, 'письменное', 'письменных', 'письменных')}`,
+].filter(Boolean) as string[];
+---
+
+<BaseLayout title={title} description={summary} current={lesson.data.slug} noindex={draft}>
+  <div class="lesson">
+    <header class="lesson-head">
+      <p class="eyebrow">{eyebrow ?? `Roblox Studio · Luau · урок ${order}`}</p>
+      <h1 set:html={inlineMarkup(headline ?? title)} />
+      <p class="lede" set:html={inlineMarkup(summary)} />
+      <div class="meta">
+        {draft && <span class="chip draft">черновик — на сайте его нет</span>}
+        {allChips.map((chip) => <span class="chip">{chip}</span>)}
+      </div>
+    </header>
+
+    {toc.length > 1 && (
+      <nav class="toc" aria-label="Содержание урока">
+        <p class="toc-h">В этом уроке</p>
+        <ol>
+          {toc.map((item) => (
+            <li><a href={`#${item.id}`}>{item.num} · {item.title}</a></li>
+          ))}
+        </ol>
+      </nav>
+    )}
+
+    <article class="lesson-content">
+      <slot />
+    </article>
+
+    {(prev || next) && (
+      <nav class="pager" aria-label="Соседние уроки">
+        {prev ? (
+          <a href={lessonPath(prev.data.slug)} rel="prev">
+            <span class="dir">← предыдущий</span>
+            <span class="nm">{prev.data.title}</span>
+          </a>
+        ) : <div />}
+        {next ? (
+          <a href={lessonPath(next.data.slug)} rel="next" class="next">
+            <span class="dir">следующий →</span>
+            <span class="nm">{next.data.title}</span>
+          </a>
+        ) : <div />}
+      </nav>
+    )}
+
+    <footer class="page-foot">{SITE_FOOTER}</footer>
+  </div>
+</BaseLayout>

@@ -1,0 +1,21 @@
+---
+/**
+ * Тренажёр. Единственный компонент с интерактивом — его скрипт попадает
+ * только на те страницы, где тренажёр действительно стоит.
+ *
+ *   <Trainer type="expand" />
+ *   <Trainer type="guess" />
+ *
+ * Настройки у каждого свои, они описаны в TrainerExpand.astro и TrainerGuess.astro
+ * и передаются сюда как обычные пропсы.
+ */
+import TrainerExpand from './TrainerExpand.astro';
+import TrainerGuess from './TrainerGuess.astro';
+
+interface Props {
+  type: 'expand' | 'guess';
+  [key: string]: unknown;
+}
+const { type, ...rest } = Astro.props;
+---
+{type === 'expand' ? <TrainerExpand {...rest} /> : <TrainerGuess {...rest} />}

@@ -1,0 +1,134 @@
+---
+/**
+ * Меню курса: раздел → урок. Строится из содержимого коллекции,
+ * руками его редактировать не нужно и не получится.
+ */
+import { getSectionGroups, lessonPath, SHOW_DRAFTS } from '../lib/lessons';
+import { SITE_TITLE, SITE_EYEBROW } from '../lib/site';
+
+interface Props {
+  /** slug урока, который сейчас открыт */
+  current?: string;
+}
+const { current } = Astro.props;
+const groups = await getSectionGroups();
+
+const isCurrentSection = (lessons: { data: { slug: string } }[]) =>
+  lessons.some((l) => l.data.slug === current);
+---
+
+<aside class="side" id="side-menu">
+  <a class="side-brand" href="/">
+    <span class="s">{SITE_EYEBROW}</span>
+    <span class="t">{SITE_TITLE}</span>
+  </a>
+
+  <nav class="side-nav" aria-label="Уроки курса">
+    {groups.map((group) => (
+      <details class="sec-item" data-section={group.id} open={isCurrentSection(group.lessons)}>
+        <summary>
+          {group.title}
+          <span class="cnt">{group.lessons.length}</span>
+        </summary>
+        <ul class="sec-list">
+          {group.lessons.map((lesson) => (
+            <li>
+              <a
+                href={lessonPath(lesson.data.slug)}
+                aria-current={lesson.data.slug === current ? 'page' : undefined}
+              >
+                {lesson.data.title}
+                {lesson.data.draft && <span class="draft-badge">черновик</span>}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    ))}
+  </nav>
+
+  {groups.length === 0 && (
+    <p class="side-note">Уроков пока нет. Создай первый командой <code>npm run new-lesson</code>.</p>
+  )}
+
+  {SHOW_DRAFTS && (
+    <p class="side-note">Это локальный просмотр: черновики видны. На сайте их не будет.</p>
+  )}
+</aside>
+
+<div class="side-scrim" data-scrim></div>
+
+<script>
+  const menu = document.getElementById('side-menu');
+  const burger = document.querySelector<HTMLButtonElement>('[data-burger]');
+  const scrim = document.querySelector<HTMLElement>('[data-scrim]');
+  const KEY = 'menu-open-sections';
+
+  // ——— какие разделы ученик разворачивал: помним между переходами ———
+  if (menu) {
+    let opened: string[] = [];
+    try {
+      const saved = localStorage.getItem(KEY);
+      if (saved) opened = JSON.parse(saved);
+    } catch {
+      // приватный режим или запрещённое хранилище — просто работаем без памяти
+    }
+
+    const items = menu.querySelectorAll<HTMLDetailsElement>('.sec-item');
+    for (const item of items) {
+      const id = item.dataset.section ?? '';
+      if (opened.includes(id)) item.open = true;
+      item.addEventListener('toggle', () => {
+        const list = [...items].filter((i) => i.open).map((i) => i.dataset.section ?? '');
+        try {
+          localStorage.setItem(KEY, JSON.stringify(list));
+        } catch {
+          // не сохранилось — не страшно
+        }
+      });
+    }
+  }
+
+  // ——— выдвижная панель на узком экране ———
+  if (menu && burger && scrim) {
+    const focusable = () =>
+      [...menu.querySelectorAll<HTMLElement>('a[href], summary, button')].filter(
+        (el) => el.offsetParent !== null
+      );
+
+    const setOpen = (open: boolean) => {
+      document.body.dataset.menu = open ? 'open' : 'closed';
+      burger.setAttribute('aria-expanded', String(open));
+      if (open) focusable()[0]?.focus();
+      else burger.focus();
+    };
+
+    burger.addEventListener('click', () => setOpen(document.body.dataset.menu !== 'open'));
+    scrim.addEventListener('click', () => setOpen(false));
+
+    document.addEventListener('keydown', (e) => {
+      if (document.body.dataset.menu !== 'open') return;
+
+      if (e.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+
+      // фокус не должен убегать из открытой панели
+      if (e.key === 'Tab') {
+        const list = focusable();
+        if (list.length === 0) return;
+        const first = list[0]!;
+        const last = list[list.length - 1]!;
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !menu.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+  }
+</script>
