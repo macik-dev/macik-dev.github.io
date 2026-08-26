@@ -10,6 +10,7 @@
  * Если что-то ломается, скрипт останавливается и пишет, что именно чинить.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 const red = (t) => `\x1b[31m${t}\x1b[0m`;
 const green = (t) => `\x1b[32m${t}\x1b[0m`;
@@ -26,15 +27,22 @@ function stop(title, advice) {
   process.exit(1);
 }
 
-// npx и npm на Windows — это .cmd, их нужно запускать через оболочку.
-// git и node — обычные программы, им оболочка только мешает кавычками.
-const NEEDS_SHELL = new Set(['npx', 'npm']);
+// Astro запускается своей точкой входа напрямую через node, а не через npx:
+// npx на Windows — это .cmd, ему нужна оболочка, а запуск с оболочкой Node 24
+// уже ругается (DEP0190). Так проще и тише.
+const ASTRO = 'node_modules/astro/bin/astro.mjs';
+
+if (!existsSync(ASTRO)) {
+  stop('не установлены зависимости', [
+    'Похоже, папку только что скачали или node_modules удалили.',
+    'Выполни ' + bold('npm install') + ' и запусти публикацию заново.',
+  ]);
+}
 
 /** Запускает команду, показывая её вывод. Возвращает код возврата. */
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: 'inherit',
-    shell: NEEDS_SHELL.has(command),
     ...options,
   });
   return result.status ?? 1;
@@ -42,7 +50,7 @@ function run(command, args, options = {}) {
 
 /** Запускает команду молча и отдаёт её вывод. */
 function capture(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8', shell: NEEDS_SHELL.has(command) });
+  const result = spawnSync(command, args, { encoding: 'utf8' });
   return { code: result.status ?? 1, out: (result.stdout ?? '').trim(), err: (result.stderr ?? '').trim() };
 }
 
@@ -72,7 +80,7 @@ if (run('node', ['scripts/check-secrets.mjs']) !== 0) {
 //  2. Проверка типов и схемы уроков
 // ─────────────────────────────────────────────────────────────
 say('Проверяю уроки и код');
-if (run('npx', ['astro', 'check']) !== 0) {
+if (run('node', [ASTRO, 'check']) !== 0) {
   stop('проверка не прошла', [
     'Выше написано, в каком файле и что не так.',
     'Чаще всего это опечатка в шапке урока: пропущено поле или не тот тип.',
@@ -84,7 +92,7 @@ if (run('npx', ['astro', 'check']) !== 0) {
 //  3. Пробная сборка
 // ─────────────────────────────────────────────────────────────
 say('Собираю сайт начисто');
-if (run('npx', ['astro', 'build']) !== 0) {
+if (run('node', [ASTRO, 'build']) !== 0) {
   stop('сборка не прошла', [
     'Публиковать нечего: на GitHub она сломается ровно так же.',
     'Выше написана причина. Почини и запусти ' + bold('npm run publish') + ' ещё раз.',
