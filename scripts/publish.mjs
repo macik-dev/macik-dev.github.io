@@ -95,43 +95,79 @@ if (run('npx', ['astro', 'build']) !== 0) {
 //  4. Что изменилось
 // ─────────────────────────────────────────────────────────────
 say('Смотрю, что изменилось');
+
+const branch = capture('git', ['rev-parse', '--abbrev-ref', 'HEAD']).out || 'main';
+
+/**
+ * Сколько коммитов сохранено, но ещё не отправлено на GitHub.
+ *
+ * Так бывает, если в прошлый раз сохранение прошло, а отправка сорвалась:
+ * пропал интернет, GitHub не пустил, репозиторий назывался не так. Файлы
+ * тогда уже сохранены, новых правок нет — но на сайте их всё равно нет,
+ * потому что до GitHub они не доехали. Такие коммиты нужно дослать.
+ */
+function skolkoNeOtpravleno() {
+  // в репозитории вообще нет коммитов — отправлять нечего
+  if (capture('git', ['rev-parse', '--verify', '--quiet', 'HEAD']).code !== 0) return 0;
+
+  const upstream = capture('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  const naGitHube = upstream.code === 0 && upstream.out ? upstream.out : `origin/${branch}`;
+
+  // такой ветки на GitHub ещё нет — значит, не отправлено вообще ничего
+  if (capture('git', ['rev-parse', '--verify', '--quiet', naGitHube]).code !== 0) {
+    return Number(capture('git', ['rev-list', '--count', 'HEAD']).out) || 0;
+  }
+
+  const schet = capture('git', ['rev-list', '--count', `${naGitHube}..HEAD`]);
+  return schet.code === 0 ? Number(schet.out) || 0 : 0;
+}
+
 const status = capture('git', ['status', '--porcelain']);
-if (!status.out) {
+const neOtpravleno = skolkoNeOtpravleno();
+
+if (!status.out && neOtpravleno === 0) {
   console.log('\n' + green('Менять нечего: ') + 'все файлы уже опубликованы.');
   console.log(dim('Если ждал изменений — проверь, что сохранил файл в редакторе.\n'));
   process.exit(0);
 }
-console.log(status.out.split('\n').map((l) => '  ' + l).join('\n'));
+
+if (status.out) {
+  console.log(status.out.split('\n').map((l) => '  ' + l).join('\n'));
+} else {
+  console.log('  ' + dim(`Новых правок нет, но на GitHub не уехало сохранённых изменений: ${neOtpravleno}.`));
+  console.log('  ' + dim('Досылаю их.'));
+}
 
 // ─────────────────────────────────────────────────────────────
 //  5. Коммит
 // ─────────────────────────────────────────────────────────────
-const custom = process.argv.slice(2).join(' ').trim();
-const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-const message = custom || `обновление материалов — ${today}`;
+if (status.out) {
+  const custom = process.argv.slice(2).join(' ').trim();
+  const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  const message = custom || `обновление материалов — ${today}`;
 
-say(`Сохраняю изменения: ${bold(message)}`);
-if (run('git', ['add', '-A']) !== 0) stop('не удалось добавить файлы в коммит', ['Попробуй ещё раз.']);
+  say(`Сохраняю изменения: ${bold(message)}`);
+  if (run('git', ['add', '-A']) !== 0) stop('не удалось добавить файлы в коммит', ['Попробуй ещё раз.']);
 
-const commit = capture('git', ['commit', '-m', message]);
-if (commit.code !== 0) {
-  const text = commit.out + commit.err;
-  if (/please tell me who you are|user\.email|user\.name/i.test(text)) {
-    stop('git не знает, кто ты', [
-      'Выполни один раз, подставив свои данные:',
-      '  ' + bold('git config --global user.name "Имя Фамилия"'),
-      '  ' + bold('git config --global user.email "почта@example.com"'),
-      'Потом снова ' + bold('npm run publish') + '.',
-    ]);
+  const commit = capture('git', ['commit', '-m', message]);
+  if (commit.code !== 0) {
+    const text = commit.out + commit.err;
+    if (/please tell me who you are|user\.email|user\.name/i.test(text)) {
+      stop('git не знает, кто ты', [
+        'Выполни один раз, подставив свои данные:',
+        '  ' + bold('git config --global user.name "Имя Фамилия"'),
+        '  ' + bold('git config --global user.email "почта@example.com"'),
+        'Потом снова ' + bold('npm run publish') + '.',
+      ]);
+    }
+    stop('не удалось сохранить изменения', [text || 'Причина не ясна, покажи этот вывод тому, кто настраивал сайт.']);
   }
-  stop('не удалось сохранить изменения', [text || 'Причина не ясна, покажи этот вывод тому, кто настраивал сайт.']);
+  console.log(commit.out);
 }
-console.log(commit.out);
 
 // ─────────────────────────────────────────────────────────────
 //  6. Отправка
 // ─────────────────────────────────────────────────────────────
-const branch = capture('git', ['rev-parse', '--abbrev-ref', 'HEAD']).out || 'main';
 say(`Отправляю на GitHub (ветка ${bold(branch)})`);
 
 if (capture('git', ['remote']).out === '') {
